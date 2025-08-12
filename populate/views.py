@@ -1,10 +1,10 @@
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET, tempfile, zipfile, os, json, io
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from populate.serializers import ISMDetailSerializer
 
-from .utils import get_access_token, get_site_resources, get_documents, get_document
+from ..utils import get_access_token, get_site_resources, get_documents, get_document
 from .models import ISMDetail
 from datetime import datetime
 
@@ -119,3 +119,59 @@ def ism_data(request, siteid, date):
         serializer = ISMDetailSerializer(data, many=True)
         return Response(serializer.data)
     return Response({"error": "Invalid request method."}, status=405)
+
+@api_view(['GET'])
+def populate_report_exported(request, siteid, date):
+    if request.method == 'GET':
+        access_token = get_access_token()
+        if not access_token:
+            return Response({"error": "Failed to obtain access token."}, status=401)
+
+        site_id = siteid
+        document_type = "report-exported"
+        resources_response = get_site_resources(site_id, document_type)
+
+        resources_list = resources_response.get("resources", [])
+        if not resources_list:
+            return Response({"error": "No resources found."}, status=404)
+
+        # Find the resource that contains the date
+        resource_for_date = next((res for res in resources_list if date in res), None)
+        if not resource_for_date:
+            return Response({"error": f"No resource found for date {date}."}, status=404)
+
+        documents_response = get_documents(resource_for_date)
+        documents = documents_response.get("documents", [])
+
+        # Assume the first document is the .zip file you want
+        zip_doc = next((doc for doc in documents if doc.get('fileName', '').endswith('.zip')), None)
+        if not zip_doc:
+            return Response({"error": "No .zip document found."}, status=404)
+
+        # Get the zip file content (should be bytes)
+        zip_content = get_document(zip_doc['path'])  # This should return bytes, not text
+
+        # If get_document returns a requests.Response, use .content; if bytes, use as is
+        if hasattr(zip_content, 'content'):
+            zip_bytes = zip_content.content
+        elif isinstance(zip_content, bytes):
+            zip_bytes = zip_content
+        else:
+            return Response({"error": "Could not retrieve zip file content."}, status=500)
+
+        # Extract the zip to a temp directory and find the JSON file
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            zip_path = os.path.join(tmpdirname, "file.zip")
+            with open(zip_path, "wb") as f:
+                f.write(zip_bytes)
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(tmpdirname)
+                # Find the first .json file
+                json_file = next((name for name in zip_ref.namelist() if name.endswith('.json')), None)
+                if not json_file:
+                    return Response({"error": "No JSON file found in zip."}, status=404)
+                json_path = os.path.join(tmpdirname, json_file)
+                with open(json_path, 'r', encoding='utf-8') as jf:
+                    json_data = json.load(jf)
+
+        return Response(json_data)
