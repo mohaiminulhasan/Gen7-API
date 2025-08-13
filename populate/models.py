@@ -50,5 +50,6 @@ class ItemizedInventory(models.Model):
         return f"{self.name} ({self.external_id})"
 
     class Meta:
+        unique_together = ('site_id', 'date', 'upc')
         verbose_name = "Itemized Inventory"
         verbose_name_plural = "Itemized Inventory"

@@ -200,16 +200,16 @@ def populate_report_exported(request, siteid, date):
                 entry_date = None
 
             obj, was_created = ItemizedInventory.objects.get_or_create(
-                external_id=item.get("external_id"),
+                    site_id=siteid,
+                    date=entry_date,
+                    upc=item.get("upc", ""),
                 defaults={
-                    "site_id": siteid,
-                    "date": entry_date,
                     "name": item.get("name", ""),
                     "category": item.get("category", ""),
                     "size": item.get("size", ""),
                     "quantity": item.get("quantity", 0),
                     "price": item.get("price", 0) / 100 if isinstance(item.get("price"), int) else item.get("price", 0),
-                    "upc": item.get("upc", ""),
+                    "external_id": item.get("external_id"),
                     "image_url": item.get("image_url", ""),
                     "location": item.get("location", ""),
                     "description": item.get("description", ""),
