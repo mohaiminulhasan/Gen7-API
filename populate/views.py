@@ -208,7 +208,7 @@ def populate_report_exported(request, siteid, date):
                     upc=item.get("upc", ""),
                 defaults={
                     "name": item.get("name", ""),
-                    "category": item.get("category", ""),
+                    "category": item.get("category") if item.get("category") is not None else "null",
                     "size": item.get("size", ""),
                     "quantity": item.get("quantity", 0),
                     "price": item.get("price", 0) / 100 if isinstance(item.get("price"), int) else item.get("price", 0),
