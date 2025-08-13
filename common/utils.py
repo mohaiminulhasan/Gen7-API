@@ -37,15 +37,17 @@ def get_documents(resource, start=0, limit=15):
         return response.json()
     return None
 
-def get_document(path):
+def get_document(path, headers=None):
     url = f'https://business-documents-api.petrosoft.cloud/business-document?path={path}'
-    headers = {
+    default_headers = {
         'Authorization': f'Bearer {get_access_token()}',
         'Content-Type': 'application/json'
     }
-    response = requests.get(url, headers=headers)
+    if headers:
+        default_headers.update(headers)
+    response = requests.get(url, headers=default_headers)
     if response.status_code == 200:
-        return response.text
+        return response
     return None
 
 def ism_detail_to_dict(ism_elem):
