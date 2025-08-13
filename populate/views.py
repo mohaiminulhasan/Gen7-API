@@ -8,6 +8,8 @@ from common.utils import get_access_token, get_site_resources, get_documents, ge
 from .models import ISMDetail, ItemizedInventory
 from datetime import datetime
 
+from django.db import transaction
+
 @api_view(['GET'])
 def populate_data(request, siteid, date):
     if request.method == 'GET':
@@ -122,6 +124,7 @@ def ism_data(request, siteid, date):
         return Response(serializer.data)
     return Response({"error": "Invalid request method."}, status=405)
 
+@transaction.non_atomic_requests
 @api_view(['GET'])
 def populate_report_exported(request, siteid, date):
     if request.method == 'GET':
