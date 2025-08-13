@@ -36,7 +36,7 @@ class ItemizedInventory(models.Model):
     size = models.CharField(max_length=50, blank=True, null=True)
     quantity = models.IntegerField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    external_id = models.CharField(max_length=32, unique=True)
+    external_id = models.CharField(max_length=32)
     upc = models.CharField(max_length=32, blank=True)
     image_url = models.URLField(blank=True)
     location = models.CharField(max_length=100, blank=True)
