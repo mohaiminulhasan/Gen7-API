@@ -126,7 +126,7 @@ def ism_data(request, siteid, date):
         return Response(serializer.data)
     return Response({"error": "Invalid request method."}, status=405)
 
-@transaction.non_atomic_requests
+# @transaction.non_atomic_requests
 @api_view(['GET'])
 def populate_report_exported(request, siteid, date):
     # Trigger the Celery task
