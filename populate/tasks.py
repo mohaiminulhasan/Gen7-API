@@ -63,29 +63,27 @@ def process_report_exported(siteid, date):
         except Exception:
             entry_date = None
 
-        obj, was_created = ItemizedInventory.objects.get_or_create(
+        obj = ItemizedInventory(
             site_id=siteid,
             date=entry_date,
             upc=item.get("upc", ""),
-            defaults={
-                "name": item.get("name", ""),
-                "category": item.get("category") if item.get("category") is not None else "null",
-                "size": item.get("size", ""),
-                "quantity": item.get("quantity", 0),
-                "price": item.get("price", 0) / 100 if isinstance(item.get("price"), int) else item.get("price", 0),
-                "external_id": item.get("external_id"),
-                "image_url": item.get("image_url", ""),
-                "location": item.get("location", ""),
-                "description": item.get("description", ""),
-                "brand": item.get("brand", ""),
-                "unit_count": item.get("unit_count", 0),
-                "active": item.get("active", True),
-                "last_sold_date": last_sold_date,
-            }
+            name=item.get("name", ""),
+            category=item.get("category") if item.get("category") is not None else "null",
+            size=item.get("size", ""),
+            quantity=item.get("quantity", 0),
+            price=item.get("price", 0) / 100 if isinstance(item.get("price"), int) else item.get("price", 0),
+            external_id=item.get("external_id"),
+            image_url=item.get("image_url", ""),
+            location=item.get("location", ""),
+            description=item.get("description", ""),
+            brand=item.get("brand", ""),
+            unit_count=item.get("unit_count", 0),
+            active=item.get("active", True),
+            last_sold_date=last_sold_date,
         )
-        if was_created:
-            created += 1
-        else:
-            skipped += 1
+        # if was_created:
+        #     created += 1
+        # else:
+        #     skipped += 1
 
     return {"created": created, "skipped": skipped}
