@@ -81,6 +81,7 @@ def process_report_exported(siteid, date):
             active=item.get("active", True),
             last_sold_date=last_sold_date,
         )
+        obj.save()
         # if was_created:
         #     created += 1
         # else:
