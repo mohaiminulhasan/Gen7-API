@@ -10,6 +10,8 @@ from datetime import datetime
 
 from django.db import transaction
 
+from populate.tasks import process_report_exported
+
 @api_view(['GET'])
 def populate_data(request, siteid, date):
     if request.method == 'GET':
@@ -127,107 +129,112 @@ def ism_data(request, siteid, date):
 @transaction.non_atomic_requests
 @api_view(['GET'])
 def populate_report_exported(request, siteid, date):
-    if request.method == 'GET':
-        access_token = get_access_token()
-        if not access_token:
-            return Response({"error": "Failed to obtain access token."}, status=401)
+    # Trigger the Celery task
+    task = process_report_exported.delay(siteid, date)
+    return Response({"task_id": task.id, "status": "Processing started. Check task status for results."})
 
-        site_id = siteid
-        document_type = "report-exported"
-        resources_response = get_site_resources(site_id, document_type)
+# def populate_report_exported(request, siteid, date):
+#     if request.method == 'GET':
+#         access_token = get_access_token()
+#         if not access_token:
+#             return Response({"error": "Failed to obtain access token."}, status=401)
 
-        resources_list = resources_response.get("resources", [])
-        if not resources_list:
-            return Response({"error": "No resources found."}, status=404)
+#         site_id = siteid
+#         document_type = "report-exported"
+#         resources_response = get_site_resources(site_id, document_type)
 
-        # Find the resource that contains the date
-        resource_for_date = next((res for res in resources_list if date in res), None)
-        if not resource_for_date:
-            return Response({"error": f"No resource found for date {date}."}, status=404)
+#         resources_list = resources_response.get("resources", [])
+#         if not resources_list:
+#             return Response({"error": "No resources found."}, status=404)
 
-        documents_response = get_documents(resource_for_date)
-        documents = documents_response.get("documents", [])
+#         # Find the resource that contains the date
+#         resource_for_date = next((res for res in resources_list if date in res), None)
+#         if not resource_for_date:
+#             return Response({"error": f"No resource found for date {date}."}, status=404)
 
-        # Assume the first document is the .zip file you want
-        zip_doc = next((doc for doc in documents if doc.get('fileName', '').endswith('.zip')), None)
-        if not zip_doc:
-            return Response({"error": "No .zip document found."}, status=404)
+#         documents_response = get_documents(resource_for_date)
+#         documents = documents_response.get("documents", [])
 
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "accept": "application/gzip"
-        }
-        # Get the zip file content (should be bytes)
-        zip_content = get_document(zip_doc['path'], headers=headers)  # This should return bytes, not text
-        print(zip_content)
+#         # Assume the first document is the .zip file you want
+#         zip_doc = next((doc for doc in documents if doc.get('fileName', '').endswith('.zip')), None)
+#         if not zip_doc:
+#             return Response({"error": "No .zip document found."}, status=404)
 
-        # If get_document returns a requests.Response, use .content; if bytes, use as is
-        if zip_content is not None:
-            zip_bytes = zip_content.content
-        else:
-            return Response({"error": "Could not retrieve zip file content."}, status=500)
+#         headers = {
+#             "Authorization": f"Bearer {access_token}",
+#             "accept": "application/gzip"
+#         }
+#         # Get the zip file content (should be bytes)
+#         zip_content = get_document(zip_doc['path'], headers=headers)  # This should return bytes, not text
+#         print(zip_content)
 
-        # Extract the zip to a temp directory and find the JSON file
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            zip_path = os.path.join(tmpdirname, "file.zip")
-            with open(zip_path, "wb") as f:
-                f.write(zip_bytes)
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                zip_ref.extractall(tmpdirname)
-                # Find the first .json file
-                json_file = next((name for name in zip_ref.namelist() if name.endswith('.json')), None)
-                if not json_file:
-                    return Response({"error": "No JSON file found in zip."}, status=404)
-                json_path = os.path.join(tmpdirname, json_file)
-                with open(json_path, 'r', encoding='utf-8') as jf:
-                    json_data = json.load(jf)
+#         # If get_document returns a requests.Response, use .content; if bytes, use as is
+#         if zip_content is not None:
+#             zip_bytes = zip_content.content
+#         else:
+#             return Response({"error": "Could not retrieve zip file content."}, status=500)
+
+#         # Extract the zip to a temp directory and find the JSON file
+#         with tempfile.TemporaryDirectory() as tmpdirname:
+#             zip_path = os.path.join(tmpdirname, "file.zip")
+#             with open(zip_path, "wb") as f:
+#                 f.write(zip_bytes)
+#             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+#                 zip_ref.extractall(tmpdirname)
+#                 # Find the first .json file
+#                 json_file = next((name for name in zip_ref.namelist() if name.endswith('.json')), None)
+#                 if not json_file:
+#                     return Response({"error": "No JSON file found in zip."}, status=404)
+#                 json_path = os.path.join(tmpdirname, json_file)
+#                 with open(json_path, 'r', encoding='utf-8') as jf:
+#                     json_data = json.load(jf)
         
-        created = 0
-        skipped = 0
+#         created = 0
+#         skipped = 0
 
-        for item in json_data:
-            # Parse last_sold_date if present
-            last_sold_date = item.get("last_sold_date")
-            if last_sold_date:
-                try:
-                    last_sold_date = datetime.strptime(last_sold_date, "%Y-%m-%d").date()
-                except Exception:
-                    last_sold_date = None
-            else:
-                last_sold_date = None
+#         for item in json_data:
+#             # Parse last_sold_date if present
+#             last_sold_date = item.get("last_sold_date")
+#             if last_sold_date:
+#                 try:
+#                     last_sold_date = datetime.strptime(last_sold_date, "%Y-%m-%d").date()
+#                 except Exception:
+#                     last_sold_date = None
+#             else:
+#                 last_sold_date = None
 
-            # Parse date from URL parameter
-            try:
-                entry_date = datetime.strptime(date, "%Y%m%d").date()
-            except Exception:
-                entry_date = None
+#             # Parse date from URL parameter
+#             try:
+#                 entry_date = datetime.strptime(date, "%Y%m%d").date()
+#             except Exception:
+#                 entry_date = None
 
-            obj, was_created = ItemizedInventory.objects.get_or_create(
-                    site_id=siteid,
-                    date=entry_date,
-                    upc=item.get("upc", ""),
-                defaults={
-                    "name": item.get("name", ""),
-                    "category": item.get("category") if item.get("category") is not None else "null",
-                    "size": item.get("size", ""),
-                    "quantity": item.get("quantity", 0),
-                    "price": item.get("price", 0) / 100 if isinstance(item.get("price"), int) else item.get("price", 0),
-                    "external_id": item.get("external_id"),
-                    "image_url": item.get("image_url", ""),
-                    "location": item.get("location", ""),
-                    "description": item.get("description", ""),
-                    "brand": item.get("brand", ""),
-                    "unit_count": item.get("unit_count", 0),
-                    "active": item.get("active", True),
-                    "last_sold_date": last_sold_date,
-                }
-            )
-            if was_created:
-                created += 1
-            else:
-                skipped += 1
+#             obj, was_created = ItemizedInventory.objects.get_or_create(
+#                     site_id=siteid,
+#                     date=entry_date,
+#                     upc=item.get("upc", ""),
+#                 defaults={
+#                     "name": item.get("name", ""),
+#                     "category": item.get("category") if item.get("category") is not None else "null",
+#                     "size": item.get("size", ""),
+#                     "quantity": item.get("quantity", 0),
+#                     "price": item.get("price", 0) / 100 if isinstance(item.get("price"), int) else item.get("price", 0),
+#                     "external_id": item.get("external_id"),
+#                     "image_url": item.get("image_url", ""),
+#                     "location": item.get("location", ""),
+#                     "description": item.get("description", ""),
+#                     "brand": item.get("brand", ""),
+#                     "unit_count": item.get("unit_count", 0),
+#                     "active": item.get("active", True),
+#                     "last_sold_date": last_sold_date,
+#                 }
+#             )
+#             if was_created:
+#                 created += 1
+#             else:
+#                 skipped += 1
 
-        return Response({"created": created, "skipped": skipped})
+#         return Response({"created": created, "skipped": skipped})
 
 @api_view(['GET'])
 def itemized_inventory(request, siteid, date):

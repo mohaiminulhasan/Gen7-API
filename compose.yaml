@@ -11,6 +11,17 @@ services:
       - postgres_data:/var/lib/postgresql/data
     env_file:
       - .env
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    env_file:
+      - .env
+  worker:
+    build: .
+    container_name: django-worker
+    env_file:
+      - .env
   web:
     build: .
     container_name: django-docker
@@ -18,6 +29,7 @@ services:
       - "8000:8000"
     depends_on:
       - db
+      - redis
     environment:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
       DEBUG: ${DEBUG}
