@@ -17,7 +17,7 @@ services:
       PGADMIN_DEFAULT_EMAIL: admin@admin.com
       PGADMIN_DEFAULT_PASSWORD: admin
     ports:
-      - "5050:5050"
+      - "5050:80"
     depends_on:
       - db
   redis:
@@ -28,7 +28,14 @@ services:
       - .env
   worker:
     build: .
+    command: celery -A core worker --loglevel=info
     container_name: django-worker
+    depends_on:
+      - db
+      - redis
+    environment:
+    - CELERY_BROKER_URL=redis://redis:6379/0
+    - DJANGO_SETTINGS_MODULE=core.settings
     env_file:
       - .env
   web:

@@ -1,3 +1,4 @@
+import logging
 from celery import shared_task
 from .models import ItemizedInventory
 from datetime import datetime
@@ -11,6 +12,10 @@ def process_report_exported(siteid, date):
     site_id = siteid
     document_type = "report-exported"
     resources_response = get_site_resources(site_id, document_type)
+    if not resources_response:
+        # Log or print the error for debugging
+        print(f"get_site_resources returned None for site_id={site_id}, document_type={document_type}")
+        return {"error": "Failed to fetch site resources."}
     resources_list = resources_response.get("resources", [])
     resource_for_date = next((res for res in resources_list if date in res), None)
     if not resource_for_date:
@@ -48,43 +53,48 @@ def process_report_exported(siteid, date):
             with open(json_path, 'r', encoding='utf-8') as jf:
                 json_data = json.load(jf)
 
-    for item in json_data:
-        last_sold_date = item.get("last_sold_date")
-        if last_sold_date:
-            try:
-                last_sold_date = datetime.strptime(last_sold_date, "%Y-%m-%d").date()
-            except Exception:
+    try:
+        for item in json_data:
+            last_sold_date = item.get("last_sold_date")
+            if last_sold_date:
+                try:
+                    last_sold_date = datetime.strptime(last_sold_date, "%Y-%m-%d").date()
+                except Exception:
+                    last_sold_date = None
+            else:
                 last_sold_date = None
-        else:
-            last_sold_date = None
 
-        try:
-            entry_date = datetime.strptime(date, "%Y%m%d").date()
-        except Exception:
-            entry_date = None
+            try:
+                entry_date = datetime.strptime(date, "%Y%m%d").date()
+            except Exception:
+                entry_date = None
 
-        obj = ItemizedInventory(
-            site_id=siteid,
-            date=entry_date,
-            upc=item.get("upc", ""),
-            name=item.get("name", ""),
-            category=item.get("category") if item.get("category") is not None else "null",
-            size=item.get("size", ""),
-            quantity=item.get("quantity", 0),
-            price=item.get("price", 0) / 100 if isinstance(item.get("price"), int) else item.get("price", 0),
-            external_id=item.get("external_id"),
-            image_url=item.get("image_url", ""),
-            location=item.get("location", ""),
-            description=item.get("description", ""),
-            brand=item.get("brand", ""),
-            unit_count=item.get("unit_count", 0),
-            active=item.get("active", True),
-            last_sold_date=last_sold_date,
-        )
-        obj.save()
-        # if was_created:
-        #     created += 1
-        # else:
-        #     skipped += 1
+            obj = ItemizedInventory(
+                site_id=siteid,
+                date=entry_date,
+                upc=item.get("upc", ""),
+                name=item.get("name", ""),
+                category=item.get("category") if item.get("category") is not None else "null",
+                size=item.get("size", ""),
+                quantity=item.get("quantity", 0),
+                price=item.get("price", 0) / 100 if isinstance(item.get("price"), int) else item.get("price", 0),
+                external_id=item.get("external_id"),
+                image_url=item.get("image_url", ""),
+                location=item.get("location", ""),
+                description=item.get("description", ""),
+                brand=item.get("brand", ""),
+                unit_count=item.get("unit_count", 0),
+                active=item.get("active", True),
+                last_sold_date=last_sold_date,
+            )
+            obj.save()
+            print(f"Saved: {obj.upc} - {obj.name}")
+            # if was_created:
+            #     created += 1
+            # else:
+            #     skipped += 1
 
-    return {"created": created, "skipped": skipped}
+        return {"created": created, "skipped": skipped}
+    except Exception as e:
+        logging.exception("Error processing report export")
+        return {"error": str(e)}
